@@ -3,6 +3,9 @@
 namespace Madarit\LaravelKashier;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Route;
+use Madarit\LaravelKashier\Http\Middleware\VerifyWebhookSignature;
+use Madarit\LaravelKashier\Http\Middleware\VerifyCallbackSignature;
 
 class KashierServiceProvider extends ServiceProvider
 {
@@ -49,5 +52,32 @@ class KashierServiceProvider extends ServiceProvider
 
         // Load routes
         $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
+
+        // Register middleware
+        $this->app['router']->aliasMiddleware('kashier.webhook', VerifyWebhookSignature::class);
+        $this->app['router']->aliasMiddleware('kashier.callback', VerifyCallbackSignature::class);
+
+        // Register webhook routes if enabled
+        if (config('kashier.webhook.enabled', true)) {
+            $this->registerWebhookRoutes();
+        }
+    }
+
+    /**
+     * Register webhook routes.
+     *
+     * @return void
+     */
+    protected function registerWebhookRoutes()
+    {
+        Route::group([
+            'prefix' => config('kashier.webhook.prefix', 'kashier'),
+            'middleware' => ['api', 'kashier.webhook'],
+        ], function () {
+            Route::post('/webhook', [
+                'uses' => '\Madarit\LaravelKashier\Http\Controllers\WebhookController@handle',
+                'as' => 'kashier.webhook',
+            ]);
+        });
     }
 }

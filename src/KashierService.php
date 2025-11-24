@@ -2,6 +2,13 @@
 
 namespace Madarit\LaravelKashier;
 
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Madarit\LaravelKashier\Exceptions\KashierConnectionException;
+use Madarit\LaravelKashier\Exceptions\KashierRefundException;
+use Madarit\LaravelKashier\Exceptions\KashierConfigurationException;
+use Madarit\LaravelKashier\Events\RefundProcessed;
+
 class KashierService
 {
     private $config;
@@ -119,5 +126,147 @@ class KashierService
     public function getBaseUrl()
     {
         return $this->config['base_url'];
+    }
+
+    /**
+     * Get API base URL
+     *
+     * @return string
+     */
+    public function getApiBaseUrl()
+    {
+        return $this->config['api_url'] ?? ($this->mode === 'live' 
+            ? 'https://api.kashier.io' 
+            : 'https://test-api.kashier.io');
+    }
+
+    /**
+     * Process a refund for a transaction
+     *
+     * @param string $orderId
+     * @param string $transactionId
+     * @param float|null $amount Optional partial refund amount
+     * @param string|null $reason Optional refund reason
+     * @return array
+     * @throws KashierConfigurationException
+     * @throws KashierConnectionException
+     * @throws KashierRefundException
+     */
+    public function refund($orderId, $transactionId, $amount = null, $reason = null)
+    {
+        if (!$this->config['api_key']) {
+            throw new KashierConfigurationException('API key is not configured');
+        }
+
+        $apiUrl = $this->getApiBaseUrl();
+        $url = "{$apiUrl}/orders/{$orderId}/transactions/{$transactionId}?operation=refund";
+
+        $payload = [];
+        if ($amount !== null) {
+            $payload['amount'] = $amount;
+        }
+        if ($reason !== null) {
+            $payload['reason'] = $reason;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => $this->config['api_key'],
+                'Content-Type' => 'application/json',
+            ])->put($url, $payload);
+
+            if ($response->failed()) {
+                $errorMessage = $response->json()['message'] ?? 'Refund request failed';
+                throw new KashierRefundException($errorMessage, $response->status());
+            }
+
+            $result = $response->json();
+
+            // Log refund
+            if (config('kashier.logging.enabled', true)) {
+                Log::info('Kashier Refund Processed', [
+                    'order_id' => $orderId,
+                    'transaction_id' => $transactionId,
+                    'amount' => $amount,
+                    'status' => $result['status'] ?? 'unknown',
+                    'timestamp' => now()->toDateTimeString()
+                ]);
+            }
+
+            // Dispatch event
+            event(new RefundProcessed($result));
+
+            return $result;
+
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            throw new KashierConnectionException('Failed to connect to Kashier API: ' . $e->getMessage(), 0, $e);
+        } catch (\Exception $e) {
+            if ($e instanceof KashierRefundException || $e instanceof KashierConnectionException) {
+                throw $e;
+            }
+            throw new KashierRefundException('Unexpected error during refund: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * Get refund status
+     *
+     * @param string $orderId
+     * @param string $transactionId
+     * @return array
+     * @throws KashierConfigurationException
+     * @throws KashierConnectionException
+     */
+    public function getRefundStatus($orderId, $transactionId)
+    {
+        if (!$this->config['api_key']) {
+            throw new KashierConfigurationException('API key is not configured');
+        }
+
+        $apiUrl = $this->getApiBaseUrl();
+        $url = "{$apiUrl}/orders/{$orderId}/transactions/{$transactionId}";
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => $this->config['api_key'],
+                'Content-Type' => 'application/json',
+            ])->get($url);
+
+            if ($response->failed()) {
+                throw new KashierConnectionException('Failed to get refund status', $response->status());
+            }
+
+            return $response->json();
+
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            throw new KashierConnectionException('Failed to connect to Kashier API: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * Create a full refund (convenience method)
+     *
+     * @param string $orderId
+     * @param string $transactionId
+     * @param string|null $reason
+     * @return array
+     */
+    public function fullRefund($orderId, $transactionId, $reason = null)
+    {
+        return $this->refund($orderId, $transactionId, null, $reason);
+    }
+
+    /**
+     * Create a partial refund (convenience method)
+     *
+     * @param string $orderId
+     * @param string $transactionId
+     * @param float $amount
+     * @param string|null $reason
+     * @return array
+     */
+    public function partialRefund($orderId, $transactionId, $amount, $reason = null)
+    {
+        return $this->refund($orderId, $transactionId, $amount, $reason);
     }
 }
