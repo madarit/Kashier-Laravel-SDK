@@ -1,4 +1,4 @@
-# Laravel Kashier Payment Integration
+# Laravel Kashier SDK Payment Gateway Integration
 
 A comprehensive Laravel package for integrating Kashier payment gateway with advanced features including refunds, webhooks, and event handling.
 
@@ -625,7 +625,7 @@ We are committed to delivering high-quality, secure, and well-documented package
 ### Connect With Us
 
 - **GitHub:** [github.com/madarit](https://github.com/madarit)
-- **Website:** Contact us for custom development and integration services
+- **Website:** [https://madar.it/home/Contact us](https://madar.it/home/contactus/) for custom development and integration services
 
 For package-related issues, please open an issue on the GitHub repository. For custom development or integration services, feel free to reach out directly.
 
