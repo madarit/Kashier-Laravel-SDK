@@ -28,7 +28,7 @@ A comprehensive Laravel package for integrating Kashier payment gateway with adv
 ### 1. Install via Composer
 
 ```bash
-composer require madarit/laravel-kashier
+composer require madarit/kashier-laravel-sdk
 ```
 
 The package will automatically register itself via Laravel's package auto-discovery.

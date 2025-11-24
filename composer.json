@@ -1,7 +1,7 @@
 {
-    "name": "madarit/laravel-kashier",
-    "description": "Laravel package for integrating Kashier payment gateway",
-    "keywords": ["laravel", "kashier", "payment", "gateway", "egypt"],
+    "name": "madarit/kashier-laravel-sdk",
+    "description": "Comprehensive Laravel SDK for Kashier payment gateway with refunds, webhooks, and event handling",
+    "keywords": ["laravel", "kashier", "payment", "gateway", "egypt", "refund", "webhook", "sdk"],
     "type": "library",
     "license": "MIT",
     "authors": [
